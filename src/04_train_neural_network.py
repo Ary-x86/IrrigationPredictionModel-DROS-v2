@@ -1,99 +1,147 @@
-#src/04_train_neural_network.py
+# src/04_train_neural_network.py
 
+#see the v1 for monte carlo explanations
+from pathlib import Path
+import joblib
 import pandas as pd
+
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import joblib
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
+
+
+FEATURE_COLUMNS = [
+    "Soil Moisture [RH%]",
+    "Soil Temperature [C]",
+    "Environmental Temperature [ C]",
+    "Environmental Humidity [RH %]",
+    "Weather Forecast Rainfall [mm]",
+    "Crop Data Evapotranspiration [mm]",
+]
+
+
+def oversample_training_set(X_train: pd.DataFrame, y_train: pd.Series) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Simple bootstrap oversampling to reduce the chance that the rare Alert class is ignored.
+    This is applied ONLY to the training split, never to the test split.
+    """
+    df_train = X_train.copy()
+    df_train["__target__"] = y_train.values
+
+    counts = df_train["__target__"].value_counts()
+    max_count = counts.max()
+
+    balanced_parts = []
+    for class_label in counts.index:
+        class_rows = df_train[df_train["__target__"] == class_label]
+        balanced_parts.append(
+            class_rows.sample(n=max_count, replace=True, random_state=42)
+        )
+
+    df_balanced = (
+        pd.concat(balanced_parts, ignore_index=True)
+        .sample(frac=1.0, random_state=42)
+        .reset_index(drop=True)
+    )
+
+    X_balanced = df_balanced.drop(columns="__target__")
+    y_balanced = df_balanced["__target__"]
+
+    return X_balanced, y_balanced
+
+
+def build_model() -> Pipeline:
+    """
+    Keep the paper's final MLP structure and hyperparameters,
+    but wrap it in a scaler for better numerical stability.
+    """
+    pipeline = Pipeline(
+        steps=[
+            ("scaler", StandardScaler()),
+            (
+                "mlp",
+                MLPClassifier(
+                    hidden_layer_sizes=(6, 12, 6),
+                    activation="tanh",
+                    solver="adam",
+                    learning_rate="constant",
+                    alpha=0.01,
+                    max_iter=5000,
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
+    return pipeline
+
 
 def train_and_evaluate_model():
     print("Loading processed dataset...")
-    
-    # 1. Load the finalized dataset
-    df = pd.read_csv('./data/processed_dataset.csv')
+    df = pd.read_csv(DATA_DIR / "processed_dataset.csv")
 
-    # Define the 6 specific features used for predictions [cite: 523, 524]
-    X = df[[
-        'Soil Moisture [RH%]', 
-        'Soil Temperature [C]', 
-        'Environmental Temperature [ C]', 
-        'Environmental Humidity [RH %]',
-        'Weather Forecast Rainfall [mm]',
-        'Crop Data Evapotranspiration [mm]'
-    ]]
-    
-    # Define the target classification labels (0: OFF, 1: ON, 2: No Adjustment, 3: Alert)
-    y = df['Irrigation_Decision']
+    X = df[FEATURE_COLUMNS].copy()
+    y = df["Irrigation_Decision"].astype(int).copy()
 
-    print("Splitting data into training and testing sets...")
-    # 2. Train/Test Split
-    # The paper explicitly states the database was split 70% for training and 30% for testing[cite: 267].
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=42)
+    print("Class distribution in the full dataset:")
+    print(y.value_counts().sort_index())
 
-    # Note on Standardization: 
-    # The paper notes that performance working with the original dataset was almost identical to the z-score normalized dataset[cite: 269].
-    # Therefore, the data were processed in the non-normalized format to give predictions directly in a meaningful measurement[cite: 270].
-
-    print("Building the Multi-Layer Perceptron Neural Network...")
-    # 3. Model Configuration
-    # We configure the MLPClassifier using the exact hyperparameters from the paper.
-    mlp_model = MLPClassifier(
-        # The hidden layer configuration resulted from the cross-validation step.
-        # It is a three-layer layout with six, twelve, and six neurons[cite: 297].
-        hidden_layer_sizes=(6, 12, 6),
-        
-        # Hyperbolic tangent (tanh) was the corresponding activation function for the hidden layers[cite: 298, 422].
-        # (Note: scikit-learn automatically applies the Softmax function to the output layer for multi-class classification [cite: 299]).
-        activation='tanh',
-        
-        # Adaptive moment estimation (adam) was the algorithm used to train the classifier[cite: 294, 422].
-        solver='adam',
-        
-        # The initial learning rate controlled the weight updating, set to a constant value[cite: 304, 422].
-        learning_rate='constant',
-        
-        # Fine tuning of the alpha parameter was crucial to avoid overfitting; the regulation index was 0.01[cite: 303, 422].
-        alpha=0.01,
-        
-        # Add a high max_iter to ensure the model converges during training
-        max_iter=2000,
-        random_state=42
+    print("Splitting data into training and testing sets (stratified 70/30)...")
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.30,
+        random_state=42,
+        stratify=y,
     )
 
+    print("Oversampling minority classes inside the training set...")
+    X_train_balanced, y_train_balanced = oversample_training_set(X_train, y_train)
+
+    print("Building the MLP pipeline...")
+    model = build_model()
+
     print("Training the Artificial Neural Network...")
-    # 4. Train the model
-    mlp_model.fit(X_train, y_train)
+    model.fit(X_train_balanced, y_train_balanced)
     print("Training complete!")
 
-    print("\n--- Model Evaluation ---")     # 5. Model Evaluation
-    # Prediction performance is evaluated by calculating various indicators, such as accuracy, precision, recall, and F1-score[cite: 96, 308].
+    print("\n--- Model Evaluation ---")
+    y_pred = model.predict(X_test)
 
-    y_pred = mlp_model.predict(X_test)
-    
     accuracy = accuracy_score(y_test, y_pred)
-    print(f"Overall Accuracy: {accuracy * 100:.2f}% (Paper achieved 99.61%)")
-    
-    # We add labels=[0, 1, 2, 3] to force the report to include all classes
+    print(f"Overall Accuracy: {accuracy * 100:.4f}%")
+
     print("\nConfusion Matrix:")
     print(confusion_matrix(y_test, y_pred, labels=[0, 1, 2, 3]))
-    
+
     print("\nDetailed Classification Report:")
-    # This report automatically calculates the precision, recall, F1-score, macro-average, and weighted-average precision required by the paper[cite: 329, 330].
-    print(classification_report(
-        y_test, 
-        y_pred, 
-        labels=[0, 1, 2, 3], 
-        target_names=['OFF (0)', 'ON (1)', 'No Adj (2)', 'Alert (3)'],
-        zero_division=0 # This prevents a crash if a class has 0 samples
-    ))
-    
+    print(
+        classification_report(
+            y_test,
+            y_pred,
+            labels=[0, 1, 2, 3],
+            target_names=["OFF (0)", "ON (1)", "No Adj (2)", "Alert (3)"],
+            zero_division=0,
+        )
+    )
 
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 6. Save the Model
-    # We save the trained model to the 'models/' directory so the master controller can use it for real-time predictions.
-    model_path = './models/mlp_irrigation_model.pkl'
-    joblib.dump(mlp_model, model_path)
-    print(f"\nSuccessfully saved trained model to {model_path}")
+    # Save a bundle instead of a bare model so inference scripts always know the feature order.
+    model_bundle = {
+        "model": model,
+        "feature_columns": FEATURE_COLUMNS,
+        "notes": "Pipeline(StandardScaler -> MLPClassifier) with paper-aligned MLP hyperparameters.",
+    }
+
+    model_path = MODELS_DIR / "mlp_irrigation_model.pkl"
+    joblib.dump(model_bundle, model_path)
+    print(f"\nSuccessfully saved trained model bundle to {model_path}")
+
 
 if __name__ == "__main__":
     train_and_evaluate_model()

@@ -1,101 +1,174 @@
 # src/03_soil_capacity_calculator.py
 
+from pathlib import Path
+import json
 import pandas as pd
 import numpy as np
 
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+
+# The paper describes filtering the slow-decline region after irrigation or rain
+# to estimate soil capacity, but it does not publish a hard numeric cutoff.
+# So we make that heuristic explicit and tunable here.
+RECESSION_LOOKBACK_STEPS = 12   # 12 x 10 min = 2 hours
+MAX_SLOW_DRAINAGE_DROP = -0.5   # keep only mild negative slopes close to 0
+
+
 def calculate_capacity_and_merge():
     print("Loading intermediate datasets...")
-    
-    # 1. Load the 10-minute sensor data and 1-hour weather data
-    df_sensors = pd.read_csv('./data/merged_sensor_data.csv')
-    df_weather = pd.read_csv('./data/open_meteo_forecast_data.csv')
 
-    # Convert to datetime objects
-    df_sensors['datetime'] = pd.to_datetime(df_sensors['datetime'])
-    df_weather['datetime'] = pd.to_datetime(df_weather['datetime'])
+    df_sensors = pd.read_csv(DATA_DIR / "merged_sensor_data.csv")
+    df_weather = pd.read_csv(DATA_DIR / "open_meteo_forecast_data.csv")
 
-    print("Merging 1-hour weather forecasts into 10-minute sensor data...")
-    # 2. The Missing Link: Merge datasets
-    # We round down the 10-minute sensor timestamps to the nearest hour to match the weather forecast
-    df_sensors['join_hour'] = df_sensors['datetime'].dt.floor('h')
-    df_weather['join_hour'] = df_weather['datetime']
-    
-    # Merge and drop the temporary join column
-    df_final = pd.merge(df_sensors, df_weather, on='join_hour', how='inner')
-    df_final = df_final.drop(columns=['join_hour', 'datetime_y'])
-    df_final = df_final.rename(columns={'datetime_x': 'datetime'})
+    df_sensors["datetime"] = pd.to_datetime(df_sensors["datetime"])
+    df_weather["datetime"] = pd.to_datetime(df_weather["datetime"])
 
-    print("Calculating Soil Capacity Point via Time Derivative...")
-    # 3. Calculate the time derivative of soil moisture
-    # The paper computes the time derivative of soil moisture to find where the decline rate slows down.
-    df_final['Moisture_Derivative'] = df_final['Soil Moisture [RH%]'].diff()
-    
-    # 4. Estimate Field Capacity (mu) and Standard Deviation (sigma)
-    # We isolate periods of slow drainage (e.g., negative derivative, but close to 0) 
-    # to find the soil capacity point [cite: 170-171].
-    slow_drainage_mask = (df_final['Moisture_Derivative'] < 0) & (df_final['Moisture_Derivative'] >= -0.5)
-    capacity_data = df_final[slow_drainage_mask]['Soil Moisture [RH%]']
-    
-    mu = capacity_data.mean()
-    sigma = capacity_data.std()
-    print(f"Calculated Soil Capacity (mu): {mu:.2f}%")
-    print(f"Calculated Standard Deviation (sigma): {sigma:.2f}%")
+    print("Merging hourly weather into 10-minute sensor data...")
+    df_sensors["join_hour"] = df_sensors["datetime"].dt.floor("h")
+    df_weather["join_hour"] = df_weather["datetime"]
 
-    print("Generating AI Target Classes (0=OFF, 1=ON, 2=No Adj, 3=Alert)...")
-    # 5. Define the Confidence Intervals
-    # The interval focuses on the lower limit of mu - sigma/2 and upper of mu + sigma/2[cite: 222].
-    lower_limit_standard = mu - (sigma / 2)
-    upper_limit_standard = mu + (sigma / 2)
-    critical_limit = mu - sigma  # Used for the Alert state [cite: 253-254]
+    df = (
+        df_sensors
+        .merge(df_weather, on="join_hour", how="left", suffixes=("", "_weather"))
+        .drop(columns=["join_hour", "datetime_weather"])
+        .sort_values(["line", "datetime"])
+        .reset_index(drop=True)
+    )
 
-    # Initialize the target column
-    df_final['Irrigation_Decision'] = 2 # Default to 'No Adjustment' (Class 2)
-
-    # Apply the logic from the paper's flow diagram (Figure 3) [cite: 248, 259-264]
-    for index, row in df_final.iterrows():
-        moisture = row['Soil Moisture [RH%]']
-        precip_forecast = row['Weather Forecast Rainfall [mm]']
-        
-        # Condition 1: Soil moisture < mu - sigma/2
-        if moisture < lower_limit_standard:
-            # Check for precipitation > 2 mm
-            if precip_forecast > 2.0:
-                # If rain is coming but moisture is critically low (below mu - sigma), send Alert (Class 3)
-                if moisture < critical_limit:
-                    df_final.at[index, 'Irrigation_Decision'] = 3
-                else:
-                    # Rain is coming, soil is low but not critical -> do nothing (Class 2)
-                    df_final.at[index, 'Irrigation_Decision'] = 2
-            else:
-                # No rain coming, soil is dry -> Irrigation ON (Class 1)
-                df_final.at[index, 'Irrigation_Decision'] = 1
-                
-        # Condition 2: Soil moisture > mu + sigma/2
-        elif moisture > upper_limit_standard:
-            # Soil is over capacity -> Irrigation OFF (Class 0)
-            df_final.at[index, 'Irrigation_Decision'] = 0
-            
-        # If neither, it remains 2 (No Adjustment)
-
-    # 6. Final Cleanup
-    # Drop intermediate calculation columns and match the final dataset features [cite: 523-524]
-    final_features = [
-        'Soil Moisture [RH%]', 
-        'Soil Temperature [C]', 
-        'Environmental Temperature [ C]', 
-        'Environmental Humidity [RH %]',
-        'Weather Forecast Rainfall [mm]',
-        'Crop Data Evapotranspiration [mm]',
-        'Irrigation_Decision'
+    weather_required = [
+        "Weather Forecast Rainfall [mm]",
+        "Crop Data Evapotranspiration [mm]",
+        "Weather Forecast Environmental humidity [RH %]",
     ]
-    df_final = df_final[final_features].dropna()
+    df = df.dropna(subset=weather_required).copy()
 
-    print(f"Dataset finalized! Final shape: {df_final.shape}")
-    
-    # Save the absolute final dataset ready for Neural Network training!
-    output_path = './data/processed_dataset.csv'
-    df_final.to_csv(output_path, index=False)
-    print(f"Successfully saved AI training data to {output_path}")
+    print("Calculating soil moisture derivative per irrigation line...")
+    df["Moisture_Derivative"] = df.groupby("line")["Soil Moisture [RH%]"].diff()
+
+    # Only consider the moisture recession region shortly after irrigation/rain events.
+    recent_irrigation = (
+        df.groupby("line")["Irrigation (ON/OFF)"]
+        .transform(lambda s: s.rolling(RECESSION_LOOKBACK_STEPS, min_periods=1).max())
+        .gt(0)
+    )
+    recent_rain = (
+        df.groupby("line")["Weather Forecast Rainfall [mm]"]
+        .transform(lambda s: s.rolling(RECESSION_LOOKBACK_STEPS, min_periods=1).max())
+        .gt(0)
+    )
+
+    slow_drainage_mask = (
+        (recent_irrigation | recent_rain)
+        & df["Moisture_Derivative"].lt(0)
+        & df["Moisture_Derivative"].ge(MAX_SLOW_DRAINAGE_DROP)
+    )
+
+    capacity_data = df.loc[slow_drainage_mask, "Soil Moisture [RH%]"].dropna()
+
+    # Fallback in case the strict filter is too aggressive on a future dataset.
+    if capacity_data.empty:
+        print("Warning: strict slow-drainage filter returned no rows; falling back to basic derivative filter.")
+        fallback_mask = (
+            df["Moisture_Derivative"].lt(0)
+            & df["Moisture_Derivative"].ge(MAX_SLOW_DRAINAGE_DROP)
+        )
+        capacity_data = df.loc[fallback_mask, "Soil Moisture [RH%]"].dropna()
+
+    mu = float(capacity_data.mean())
+    sigma = float(capacity_data.std())
+
+    lower_limit_standard = mu - (sigma / 2.0)
+    upper_limit_standard = mu + (sigma / 2.0)
+    critical_limit = mu - sigma
+
+    print(f"Calculated Soil Capacity (mu): {mu:.4f}%")
+    print(f"Calculated Standard Deviation (sigma): {sigma:.4f}%")
+    print(f"Lower standard limit (mu - sigma/2): {lower_limit_standard:.4f}%")
+    print(f"Upper standard limit (mu + sigma/2): {upper_limit_standard:.4f}%")
+    print(f"Critical limit (mu - sigma): {critical_limit:.4f}%")
+
+    print("Generating AI target classes using the paper's flow logic...")
+
+    # Default = No Adjustment (2)
+    df["Irrigation_Decision"] = 2
+
+    dry_mask = df["Soil Moisture [RH%]"] < lower_limit_standard
+    wet_mask = df["Soil Moisture [RH%]"] > upper_limit_standard
+    rain_mask = df["Weather Forecast Rainfall [mm]"] > 2.0
+    critical_dry_mask = df["Soil Moisture [RH%]"] < critical_limit
+
+    # Condition 1: Above the upper limit -> OFF
+    df.loc[wet_mask, "Irrigation_Decision"] = 0
+
+    # Condition 2: Below the lower limit and no significant rain -> ON
+    df.loc[dry_mask & (~rain_mask), "Irrigation_Decision"] = 1
+
+    # Condition 3: Below the lower limit, rain is coming, and critically low -> ALERT
+    df.loc[dry_mask & rain_mask & critical_dry_mask, "Irrigation_Decision"] = 3
+
+    class_counts = (
+        df["Irrigation_Decision"]
+        .value_counts()
+        .sort_index()
+        .to_dict()
+    )
+
+    print("Class counts:")
+    print(class_counts)
+
+    # Full labeled dataset for debugging, diagnostics, and Monte Carlo simulation.
+    full_columns = [
+        "datetime",
+        "line",
+        "Irrigation (ON/OFF)",
+        "Soil Moisture [RH%]",
+        "Soil Temperature [C]",
+        "Environmental Temperature [ C]",
+        "Environmental Humidity [RH %]",
+        "Weather Forecast Rainfall [mm]",
+        "Crop Data Evapotranspiration [mm]",
+        "Irrigation_Decision",
+        "Moisture_Derivative",
+    ]
+    df_full = df[full_columns].dropna().copy()
+
+    # Final training dataset: keep only the six paper-style features + target.
+    feature_columns = [
+        "Soil Moisture [RH%]",
+        "Soil Temperature [C]",
+        "Environmental Temperature [ C]",
+        "Environmental Humidity [RH %]",
+        "Weather Forecast Rainfall [mm]",
+        "Crop Data Evapotranspiration [mm]",
+        "Irrigation_Decision",
+    ]
+    df_train = df_full[feature_columns].copy()
+
+    modeling_path = DATA_DIR / "modeling_dataset_full.csv"
+    processed_path = DATA_DIR / "processed_dataset.csv"
+    metadata_path = DATA_DIR / "soil_capacity_metadata.json"
+
+    df_full.to_csv(modeling_path, index=False)
+    df_train.to_csv(processed_path, index=False)
+
+    metadata = {
+        "mu": mu,
+        "sigma": sigma,
+        "lower_limit_standard": lower_limit_standard,
+        "upper_limit_standard": upper_limit_standard,
+        "critical_limit": critical_limit,
+        "recession_lookback_steps": RECESSION_LOOKBACK_STEPS,
+        "max_slow_drainage_drop": MAX_SLOW_DRAINAGE_DROP,
+        "class_counts": {str(k): int(v) for k, v in class_counts.items()},
+    }
+
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"Saved full labeled dataset to {modeling_path}")
+    print(f"Saved training dataset to {processed_path}")
+    print(f"Saved metadata to {metadata_path}")
+
 
 if __name__ == "__main__":
     calculate_capacity_and_merge()
