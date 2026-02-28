@@ -14,6 +14,96 @@ RECESSION_LOOKBACK_STEPS = 12   # 12 x 10 min = 2 hours
 MAX_SLOW_DRAINAGE_DROP = -0.5   # keep only mild negative slopes close to 0
 
 
+def generate_event_based_labels(
+    df: pd.DataFrame,
+    lower_limit_standard: float,
+    upper_limit_standard: float,
+    critical_limit: float,
+) -> pd.DataFrame:
+    """
+    Generate control ACTION labels, not persistent state labels.
+
+    Why this matters:
+    - A 10-minute control loop should treat ON as a command pulse, not as a state
+      that gets repeated every row while the soil remains dry.
+    - Likewise, OFF should represent an action when entering the over-capacity zone,
+      not be spammed continuously.
+    - No Adjustment (2) is the default when we are already in a regime and no new action
+      should be issued.
+
+    Class semantics:
+    0 = OFF       -> send one OFF action when entering the wet / over-capacity zone
+    1 = ON        -> send one ON action when entering the dry zone and no rain is expected
+    2 = No Adj    -> do nothing / hold current behavior
+    3 = Alert     -> critically dry, but rain is expected soon
+    """
+    df = df.copy()
+    df["Irrigation_Decision"] = 2  # default No Adjustment
+
+    for line, group in df.groupby("line", sort=False):
+        # We walk line-by-line through time because this is control logic with memory.
+        idxs = list(group.sort_values("datetime").index)
+
+        # These flags track whether we are already "inside" a dry/wet regime.
+        # That prevents repeated ON/OFF spam every 10 minutes.
+        dry_active = False
+        wet_active = False
+
+        for idx in idxs:
+            moisture = float(df.at[idx, "Soil Moisture [RH%]"])
+            rain = float(df.at[idx, "Weather Forecast Rainfall [mm]"])
+
+            is_dry = moisture < lower_limit_standard
+            is_wet = moisture > upper_limit_standard
+            is_critical = moisture < critical_limit
+            rain_expected = rain > 2.0
+
+            decision = 2  # default No Adjustment
+
+            # ALERT has highest priority:
+            # If soil is critically low but relevant rain is expected,
+            # the system warns instead of blindly firing repeated irrigation commands.
+            if is_dry and rain_expected and is_critical:
+                decision = 3
+
+                # We remain logically in the dry regime.
+                dry_active = True
+                wet_active = False
+
+            # Dry zone and no meaningful rain expected:
+            # Trigger ONE ON action when entering the dry regime.
+            elif is_dry and not rain_expected:
+                if not dry_active:
+                    decision = 1
+                    dry_active = True
+                    wet_active = False
+                else:
+                    # Already in dry regime -> do not repeat ON every row.
+                    decision = 2
+
+            # Wet / over-capacity zone:
+            # Trigger ONE OFF action when entering the wet regime.
+            elif is_wet:
+                if not wet_active:
+                    decision = 0
+                    wet_active = True
+                    dry_active = False
+                else:
+                    # Already in wet regime -> do not repeat OFF every row.
+                    decision = 2
+
+            else:
+                # Back in the neutral middle band:
+                # no special state is currently active.
+                dry_active = False
+                wet_active = False
+                decision = 2
+
+            df.at[idx, "Irrigation_Decision"] = decision
+
+    return df
+
+
 def calculate_capacity_and_merge():
     print("Loading intermediate datasets...")
 
@@ -46,6 +136,8 @@ def calculate_capacity_and_merge():
     df["Moisture_Derivative"] = df.groupby("line")["Soil Moisture [RH%]"].diff()
 
     # Only consider the moisture recession region shortly after irrigation/rain events.
+    # This is our practical approximation of the slow drainage segment used to estimate
+    # the soil capacity point.
     recent_irrigation = (
         df.groupby("line")["Irrigation (ON/OFF)"]
         .transform(lambda s: s.rolling(RECESSION_LOOKBACK_STEPS, min_periods=1).max())
@@ -87,24 +179,13 @@ def calculate_capacity_and_merge():
     print(f"Upper standard limit (mu + sigma/2): {upper_limit_standard:.4f}%")
     print(f"Critical limit (mu - sigma): {critical_limit:.4f}%")
 
-    print("Generating AI target classes using the paper's flow logic...")
-
-    # Default = No Adjustment (2)
-    df["Irrigation_Decision"] = 2
-
-    dry_mask = df["Soil Moisture [RH%]"] < lower_limit_standard
-    wet_mask = df["Soil Moisture [RH%]"] > upper_limit_standard
-    rain_mask = df["Weather Forecast Rainfall [mm]"] > 2.0
-    critical_dry_mask = df["Soil Moisture [RH%]"] < critical_limit
-
-    # Condition 1: Above the upper limit -> OFF
-    df.loc[wet_mask, "Irrigation_Decision"] = 0
-
-    # Condition 2: Below the lower limit and no significant rain -> ON
-    df.loc[dry_mask & (~rain_mask), "Irrigation_Decision"] = 1
-
-    # Condition 3: Below the lower limit, rain is coming, and critically low -> ALERT
-    df.loc[dry_mask & rain_mask & critical_dry_mask, "Irrigation_Decision"] = 3
+    print("Generating AI target classes using EVENT-BASED control logic...")
+    df = generate_event_based_labels(
+        df=df,
+        lower_limit_standard=lower_limit_standard,
+        upper_limit_standard=upper_limit_standard,
+        critical_limit=critical_limit,
+    )
 
     class_counts = (
         df["Irrigation_Decision"]
@@ -115,6 +196,11 @@ def calculate_capacity_and_merge():
 
     print("Class counts:")
     print(class_counts)
+
+    total_rows = len(df)
+    if total_rows > 0:
+        on_ratio = class_counts.get(1, 0) / total_rows
+        print(f"ON class ratio: {on_ratio:.4%}")
 
     # Full labeled dataset for debugging, diagnostics, and Monte Carlo simulation.
     full_columns = [
@@ -160,6 +246,7 @@ def calculate_capacity_and_merge():
         "recession_lookback_steps": RECESSION_LOOKBACK_STEPS,
         "max_slow_drainage_drop": MAX_SLOW_DRAINAGE_DROP,
         "class_counts": {str(k): int(v) for k, v in class_counts.items()},
+        "labeling_mode": "event_based_control_actions",
     }
 
     with open(metadata_path, "w", encoding="utf-8") as f:
