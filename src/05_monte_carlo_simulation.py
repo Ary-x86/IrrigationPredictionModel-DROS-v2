@@ -1,6 +1,126 @@
 # src/05_monte_carlo_simulation.py
 
 from pathlib import Path
+import json
+import joblib
+import numpy as np
+import pandas as pd
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
+
+SEASONS_TO_SIMULATE = 1000
+DAYS_PER_SEASON = 70
+SAMPLES_PER_DAY = 24 * 6
+TOTAL_SAMPLES = DAYS_PER_SEASON * SAMPLES_PER_DAY  # 10,080
+
+FLOW_RATE_LPH = 300.0
+LITERS_PER_10MIN = FLOW_RATE_LPH * (10.0 / 60.0)   # 50 L
+PUMP_POWER_KW = 4.0
+KWH_PER_10MIN = PUMP_POWER_KW * (10.0 / 60.0)
+
+IRRIFRAME_MM = 324.5
+AREA_M2 = 132.0
+IRRIFRAME_WATER_LITERS = IRRIFRAME_MM * AREA_M2
+IRRIFRAME_ENERGY_KWH = (IRRIFRAME_WATER_LITERS / FLOW_RATE_LPH) * PUMP_POWER_KW
+
+
+def confidence_interval_95(values: np.ndarray) -> tuple[float, float]:
+    mean = float(np.mean(values))
+    std = float(np.std(values))
+    lower = mean - (2.0 * std)
+    upper = mean + (2.0 * std)
+
+    # Physical upper bound: you cannot save more than 100%
+    upper = min(upper, 100.0)
+    return lower, upper
+
+
+def run_monte_carlo_simulation():
+    print("--- Initiating Monte Carlo Simulation ---")
+
+    with open(DATA_DIR / "soil_capacity_metadata.json", "r", encoding="utf-8") as f:
+        metadata = json.load(f)
+
+    df = pd.read_csv(DATA_DIR / "processed_dataset.csv")
+
+    bundle = joblib.load(MODELS_DIR / "mlp_irrigation_model.pkl")
+    model = bundle["model"]
+    feature_columns = bundle["feature_columns"]
+
+    mu = float(metadata["mu"])
+    sigma = float(metadata["sigma"])
+
+    # IMPORTANT:
+    # The paper text says "mu - sigma/2 as the standard deviation", which is not
+    # numerically stable if taken literally. So we make the Monte Carlo spread explicit.
+    # A narrow spread around the capacity point is the practical interpretation.
+    mc_soil_std = sigma / 3.0
+
+    soil_min = float(df["Soil Moisture [RH%]"].min())
+    soil_max = float(df["Soil Moisture [RH%]"].max())
+
+    # Keep the other five inputs fixed at their empirical means.
+    # This is the cleanest reconstruction of a paper-style classifier-level Monte Carlo.
+    feature_means = df[feature_columns].mean()
+
+    rng = np.random.default_rng(42)
+
+    water_savings = []
+    energy_savings = []
+
+    print(f"Baseline IRRIFRAME Water Usage:  {IRRIFRAME_WATER_LITERS:,.2f} Liters")
+    print(f"Baseline IRRIFRAME Energy Usage: {IRRIFRAME_ENERGY_KWH:,.2f} kWh")
+    print(
+        f"Running {SEASONS_TO_SIMULATE} classifier-level Monte Carlo seasons "
+        f"({TOTAL_SAMPLES} samples each, mc_soil_std={mc_soil_std:.4f})..."
+    )
+
+    for _ in range(SEASONS_TO_SIMULATE):
+        simulated_moisture = rng.normal(loc=mu, scale=mc_soil_std, size=TOTAL_SAMPLES)
+        simulated_moisture = np.clip(simulated_moisture, soil_min, soil_max)
+
+        X_sim = pd.DataFrame(index=range(TOTAL_SAMPLES), columns=feature_columns, dtype=float)
+
+        for col in feature_columns:
+            X_sim[col] = float(feature_means[col])
+
+        X_sim["Soil Moisture [RH%]"] = simulated_moisture
+
+        predictions = model.predict(X_sim)
+
+        # Paper-faithful reading: each class-1 output is a 10-minute activation input.
+        on_activations = int(np.sum(predictions == 1))
+
+        season_water_liters = on_activations * LITERS_PER_10MIN
+        season_energy_kwh = on_activations * KWH_PER_10MIN
+
+        water_saving_pct = ((IRRIFRAME_WATER_LITERS - season_water_liters) / IRRIFRAME_WATER_LITERS) * 100.0
+        energy_saving_pct = ((IRRIFRAME_ENERGY_KWH - season_energy_kwh) / IRRIFRAME_ENERGY_KWH) * 100.0
+
+        water_savings.append(water_saving_pct)
+        energy_savings.append(energy_saving_pct)
+
+    water_savings = np.array(water_savings, dtype=float)
+    energy_savings = np.array(energy_savings, dtype=float)
+
+    w_lower, w_upper = confidence_interval_95(water_savings)
+    e_lower, e_upper = confidence_interval_95(energy_savings)
+
+    print("\n--- Monte Carlo Simulation Results (95% Confidence Interval) ---")
+    print(f"Estimated Water Savings:  {w_lower:.2f}% to {w_upper:.2f}%")
+    print(f"Estimated Energy Savings: {e_lower:.2f}% to {e_upper:.2f}%")
+
+    print("\nDiagnostic means:")
+    print(f"Mean Water Saving:  {np.mean(water_savings):.2f}%")
+    print(f"Mean Energy Saving: {np.mean(energy_savings):.2f}%")
+
+if __name__ == "__main__":
+    run_monte_carlo_simulation()
+
+# src/05_monte_carlo_simulation.py
+    """
+from pathlib import Path
 import time
 import joblib
 import numpy as np
@@ -87,14 +207,16 @@ def load_simulation_data():
 
 def build_day_library(df: pd.DataFrame) -> list[np.ndarray]:
     """
-    Build a library of daily exogenous-condition blocks.
+    # Build a library of daily exogenous-condition blocks.
 
-    Each block has 144 rows x 5 columns:
-        soil_temp, env_temp, env_humidity, rainfall, evapotranspiration
+    # Each block has 144 rows x 5 columns:
+    #     soil_temp, env_temp, env_humidity, rainfall, evapotranspiration
 
-    We deliberately keep moisture OUT of the templates because moisture is stateful
-    and must be simulated, not copied from history.
+    # We deliberately keep moisture OUT of the templates because moisture is stateful
+    # and must be simulated, not copied from history.
+
     """
+
     df = df.copy()
     df["date"] = df["datetime"].dt.date
 
@@ -131,14 +253,14 @@ def build_day_library(df: pd.DataFrame) -> list[np.ndarray]:
 
 def estimate_transition_pools(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Build empirical one-step moisture-change pools from the historical dataset.
+    # Build empirical one-step moisture-change pools from the historical dataset.
 
-    We estimate:
-    - on_pool: moisture changes observed when irrigation should be ON
-    - off_dry_pool: valve closed + no rain
-    - off_rain_pool: valve closed + rain present
+    # We estimate:
+    # - on_pool: moisture changes observed when irrigation should be ON
+    # - off_dry_pool: valve closed + no rain
+    # - off_rain_pool: valve closed + rain present
 
-    This gives the Monte Carlo a state transition model instead of fake iid threshold counting.
+    # This gives the Monte Carlo a state transition model instead of fake iid threshold counting.
     """
     df = df.sort_values(["line", "datetime"]).copy()
 
@@ -175,8 +297,8 @@ def estimate_transition_pools(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray,
 
 def bootstrap_exogenous_season(day_library: list[np.ndarray], rng: np.random.Generator) -> np.ndarray:
     """
-    Build a 70-day season by sampling daily exogenous blocks with replacement.
-    This preserves realistic intra-day weather/temperature structure better than iid row sampling.
+    # Build a 70-day season by sampling daily exogenous blocks with replacement.
+    # This preserves realistic intra-day weather/temperature structure better than iid row sampling.
     """
     season_blocks = []
     for _ in range(DAYS_PER_SEASON):
@@ -197,8 +319,8 @@ def confidence_interval_95(values: np.ndarray) -> tuple[float, float]:
 
 def predict_batch(pipeline, feature_columns: list[str], feature_matrix: np.ndarray) -> np.ndarray:
     """
-    Predict decisions for many timesteps at once using a DataFrame with the correct
-    feature names. This avoids the sklearn warning about invalid feature names.
+    # Predict decisions for many timesteps at once using a DataFrame with the correct
+    # feature names. This avoids the sklearn warning about invalid feature names.
     """
     X_df = pd.DataFrame(feature_matrix, columns=feature_columns)
     return pipeline.predict(X_df).astype(int)
@@ -222,20 +344,20 @@ def simulate_one_season_chunked(
     chunk_size: int = CHUNK_SIZE,
 ) -> tuple[float, float]:
     """
-    Stateful 10-minute simulation with chunked model predictions.
+    # Stateful 10-minute simulation with chunked model predictions.
 
-    Why this exists:
-    - A fully stepwise approach is very accurate but too slow because it does one
-      model prediction per timestep.
-    - A fully vectorized approach would break realism because current moisture depends
-      on previous decisions.
+    # Why this exists:
+    # - A fully stepwise approach is very accurate but too slow because it does one
+    #   model prediction per timestep.
+    # - A fully vectorized approach would break realism because current moisture depends
+    #   on previous decisions.
 
-    So this function uses a hybrid:
-    1) Build a provisional feature matrix for a chunk using a no-irrigation drift path.
-    2) Predict all decisions for that chunk in ONE pipeline call.
-    3) Apply those decisions step-by-step for the true state evolution.
+    # So this function uses a hybrid:
+    # 1) Build a provisional feature matrix for a chunk using a no-irrigation drift path.
+    # 2) Predict all decisions for that chunk in ONE pipeline call.
+    # 3) Apply those decisions step-by-step for the true state evolution.
 
-    This is much faster while keeping the simulation stateful.
+    # This is much faster while keeping the simulation stateful.
     """
     current_moisture = float(moisture_start)
     total_water_liters = 0.0
@@ -412,3 +534,4 @@ def run_monte_carlo_simulation():
 
 if __name__ == "__main__":
     run_monte_carlo_simulation()
+"""

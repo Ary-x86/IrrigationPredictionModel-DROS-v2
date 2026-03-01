@@ -7,10 +7,10 @@
   "recession_lookback_steps": 12,
   "max_slow_drainage_drop": -0.5,
   "class_counts": {
-    "0": 48,
-    "1": 36,
-    "2": 16238,
+    "0": 2689,
+    "1": 8641,
+    "2": 4992,
     "3": 91
   },
-  "labeling_mode": "event_based_control_actions"
+  "labeling_mode": "row_wise_policy_logic"
 }

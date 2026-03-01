@@ -6,8 +6,8 @@ import joblib
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+# from sklearn.pipeline import Pipeline
+# from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
@@ -25,59 +25,46 @@ FEATURE_COLUMNS = [
 ]
 
 
-def oversample_training_set(X_train: pd.DataFrame, y_train: pd.Series) -> tuple[pd.DataFrame, pd.Series]:
-    """
-    Simple bootstrap oversampling to reduce the chance that the rare Alert class is ignored.
-    This is applied ONLY to the training split, never to the test split.
-    """
-    df_train = X_train.copy()
-    df_train["__target__"] = y_train.values
+# def oversample_training_set(X_train: pd.DataFrame, y_train: pd.Series) -> tuple[pd.DataFrame, pd.Series]:
+#     """
+#     Simple bootstrap oversampling to reduce the chance that the rare Alert class is ignored.
+#     This is applied ONLY to the training split, never to the test split.
+#     """
+#     df_train = X_train.copy()
+#     df_train["__target__"] = y_train.values
 
-    counts = df_train["__target__"].value_counts()
-    max_count = counts.max()
+#     counts = df_train["__target__"].value_counts()
+#     max_count = counts.max()
 
-    balanced_parts = []
-    for class_label in counts.index:
-        class_rows = df_train[df_train["__target__"] == class_label]
-        balanced_parts.append(
-            class_rows.sample(n=max_count, replace=True, random_state=42)
-        )
+#     balanced_parts = []
+#     for class_label in counts.index:
+#         class_rows = df_train[df_train["__target__"] == class_label]
+#         balanced_parts.append(
+#             class_rows.sample(n=max_count, replace=True, random_state=42)
+#         )
 
-    df_balanced = (
-        pd.concat(balanced_parts, ignore_index=True)
-        .sample(frac=1.0, random_state=42)
-        .reset_index(drop=True)
+#     df_balanced = (
+#         pd.concat(balanced_parts, ignore_index=True)
+#         .sample(frac=1.0, random_state=42)
+#         .reset_index(drop=True)
+#     )
+
+#     X_balanced = df_balanced.drop(columns="__target__")
+#     y_balanced = df_balanced["__target__"]
+
+#     return X_balanced, y_balanced
+
+
+def build_model() -> MLPClassifier:
+    return MLPClassifier(
+        hidden_layer_sizes=(6, 12, 6),
+        activation="tanh",
+        solver="adam",
+        learning_rate="constant",
+        alpha=0.01,
+        max_iter=5000,
+        random_state=42,
     )
-
-    X_balanced = df_balanced.drop(columns="__target__")
-    y_balanced = df_balanced["__target__"]
-
-    return X_balanced, y_balanced
-
-
-def build_model() -> Pipeline:
-    """
-    Keep the paper's final MLP structure and hyperparameters,
-    but wrap it in a scaler for better numerical stability.
-    """
-    pipeline = Pipeline(
-        steps=[
-            ("scaler", StandardScaler()),
-            (
-                "mlp",
-                MLPClassifier(
-                    hidden_layer_sizes=(6, 12, 6),
-                    activation="tanh",
-                    solver="adam",
-                    learning_rate="constant",
-                    alpha=0.01,
-                    max_iter=5000,
-                    random_state=42,
-                ),
-            ),
-        ]
-    )
-    return pipeline
 
 
 def train_and_evaluate_model():
@@ -99,14 +86,16 @@ def train_and_evaluate_model():
         stratify=y,
     )
 
-    print("Oversampling minority classes inside the training set...")
-    X_train_balanced, y_train_balanced = oversample_training_set(X_train, y_train)
+    # print("Oversampling minority classes inside the training set...")
+    # X_train_balanced, y_train_balanced = oversample_training_set(X_train, y_train)
 
     print("Building the MLP pipeline...")
     model = build_model()
+    
 
     print("Training the Artificial Neural Network...")
-    model.fit(X_train_balanced, y_train_balanced)
+    model.fit(X_train, y_train)
+    #model.fit(X_train_balanced, y_train_balanced)
     print("Training complete!")
 
     print("\n--- Model Evaluation ---")
@@ -132,10 +121,16 @@ def train_and_evaluate_model():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Save a bundle instead of a bare model so inference scripts always know the feature order.
+    # model_bundle = {
+    #     "model": model,
+    #     "feature_columns": FEATURE_COLUMNS,
+    #     "notes": "Pipeline(StandardScaler -> MLPClassifier) with paper-aligned MLP hyperparameters.",
+    # }
+
     model_bundle = {
-        "model": model,
-        "feature_columns": FEATURE_COLUMNS,
-        "notes": "Pipeline(StandardScaler -> MLPClassifier) with paper-aligned MLP hyperparameters.",
+    "model": model,
+    "feature_columns": FEATURE_COLUMNS,
+    "notes": "Bare MLPClassifier, non-normalized, paper-faithful training setup."
     }
 
     model_path = MODELS_DIR / "mlp_irrigation_model.pkl"
