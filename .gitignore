@@ -2,7 +2,7 @@ data/*
 
 !data/stuard_environmental_data.csv
 !data/stuard_soil_data.csv
-!data/stuard_soil_data.csv
+!data/stuard_water_meter_data.csv
 
 .venv/
 
