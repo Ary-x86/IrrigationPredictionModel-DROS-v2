@@ -113,7 +113,7 @@ def run_monte_carlo_simulation():
 
     print("\nDiagnostic means:")
     print(f"Mean Water Saving:  {np.mean(water_savings):.2f}%")
-    print(f"Mean Energy Saving: {np.mean(energy_savings):.2f}%")
+   # print(f"Mean Energy Saving: {np.mean(energy_savings):.2f}%")
 
 if __name__ == "__main__":
     run_monte_carlo_simulation()
