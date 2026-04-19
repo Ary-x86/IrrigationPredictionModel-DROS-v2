@@ -70,11 +70,19 @@ def run_irrigation_system():
     
     # 1. Load the trained Multi-Layer Perceptron Neural Network
     try:
-        model = joblib.load('models/mlp_irrigation_model.pkl')
-        print("✅ Neural Network Model loaded successfully!")
+        bundle = joblib.load('models/mlp_irrigation_model.pkl')
     except FileNotFoundError:
         print("❌ Error: Model not found. Did you run 04_train_neural_network.py first?")
         return
+
+    if not isinstance(bundle, dict) or "model" not in bundle or "feature_columns" not in bundle:
+        print("❌ Error: Model file is not a bundle with keys {'model', 'feature_columns'}.")
+        print("   Retrain with src/04_train_neural_network.py to regenerate the expected bundle.")
+        return
+
+    model = bundle["model"]
+    feature_columns = bundle["feature_columns"]
+    print("✅ Neural Network Model loaded successfully!")
 
     print("Beginning 10-minute monitoring loop. Press Ctrl+C to exit.\n")
 
@@ -91,8 +99,15 @@ def run_irrigation_system():
         # Combine into a single dictionary
         live_features = {**sensor_data, **weather_data}
         
-        # Convert to a DataFrame so it matches the format the model was trained on
+        # Convert to a DataFrame so it matches the format the model was trained on.
+        # Reorder columns to match the training-time feature order stored in the bundle.
         df_live = pd.DataFrame([live_features])
+        missing = [c for c in feature_columns if c not in df_live.columns]
+        if missing:
+            print(f"❌ Missing features for model: {missing}. Skipping this cycle.")
+            time.sleep(600)
+            continue
+        df_live = df_live[feature_columns]
         
         print(f"📊 Current Soil Moisture: {live_features['Soil Moisture [RH%]']}%")
         print(f"☁️  Forecasted Rain: {live_features['Weather Forecast Rainfall [mm]']} mm")

@@ -1,0 +1,45 @@
+{
+  "bundle_path": "/home/aryan/Projects/Non-DROS v2/models/mlp_irrigation_model.pkl",
+  "dataset_path": "/home/aryan/Projects/Non-DROS v2/data/processed_dataset.csv",
+  "feature_columns": [
+    "Soil Moisture [RH%]",
+    "Soil Temperature [C]",
+    "Environmental Temperature [ C]",
+    "Environmental Humidity [RH %]",
+    "Weather Forecast Rainfall [mm]",
+    "Crop Data Evapotranspiration [mm]"
+  ],
+  "test_accuracy": 0.9867966686979484,
+  "permutation_base_accuracy": 0.9867966686979484,
+  "permutation_drop_by_feature": [
+    [
+      "Soil Moisture [RH%]",
+      0.5742027219175299
+    ],
+    [
+      "Environmental Temperature [ C]",
+      0.17034328661385328
+    ],
+    [
+      "Environmental Humidity [RH %]",
+      0.13069266707292299
+    ],
+    [
+      "Weather Forecast Rainfall [mm]",
+      0.01775340239691241
+    ],
+    [
+      "Soil Temperature [C]",
+      0.012593946780418409
+    ],
+    [
+      "Crop Data Evapotranspiration [mm]",
+      0.004712573633962935
+    ]
+  ],
+  "two_feature_tree_accuracy": 1.0,
+  "two_features": [
+    "Soil Moisture [RH%]",
+    "Weather Forecast Rainfall [mm]"
+  ]
+}

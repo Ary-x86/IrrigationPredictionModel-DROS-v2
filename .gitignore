@@ -7,3 +7,12 @@ data/*
 .venv/
 
 models/*
+
+claude-context-ignore/
+claude-context-ignore/*
+
+papers/
+papers*
+
+Research-Paper/
+Research-Paper/*

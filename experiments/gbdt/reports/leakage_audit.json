@@ -1,0 +1,148 @@
+{
+  "target": "y_vwc_h1h",
+  "elapsed_seconds": 71.9,
+  "shuffle_label": {
+    "shuffled_val_rmse": 4.662546093835313,
+    "persistence_val_rmse": 2.002032982948786,
+    "pass": true
+  },
+  "ablation": {
+    "dropped_features": [
+      "vwc_20cm",
+      "vwc_20cm_deriv_1h",
+      "vwc_20cm_lag_144s",
+      "vwc_20cm_lag_18s",
+      "vwc_20cm_lag_36s",
+      "vwc_20cm_lag_6s",
+      "vwc_20cm_lag_72s",
+      "vwc_20cm_roll_mean_3h",
+      "vwc_20cm_roll_std_6h"
+    ],
+    "ablated_val_rmse": 2.80854539982206,
+    "full_val_rmse": 1.8765657470980834,
+    "degradation_rmse": 0.9319796527239765
+  },
+  "permutation_importance": [
+    [
+      "vwc_20cm",
+      3.040794931883183
+    ],
+    [
+      "hours_since_last_irrigation",
+      0.5426975893689103
+    ],
+    [
+      "vwc_20cm_deriv_1h",
+      0.05825517440075623
+    ],
+    [
+      "air_temp_c",
+      0.026552078290674297
+    ],
+    [
+      "vwc_20cm_lag_6s",
+      0.024751926594730245
+    ],
+    [
+      "line_id",
+      0.022426404227389174
+    ],
+    [
+      "vpd_kpa",
+      0.004137883297915312
+    ],
+    [
+      "rh_pct",
+      0.003998254887420449
+    ],
+    [
+      "et0_hargreaves_mm_day",
+      0.0029448644719141104
+    ],
+    [
+      "et0_open_meteo_mm_h",
+      0.0011954223361123617
+    ],
+    [
+      "vwc_20cm_lag_144s",
+      0.0003009140595533477
+    ],
+    [
+      "rain_mm_h",
+      0.0
+    ],
+    [
+      "rain_mm_1h_sum",
+      0.0
+    ],
+    [
+      "rain_mm_6h_sum",
+      0.0
+    ],
+    [
+      "rain_mm_24h_sum",
+      0.0
+    ],
+    [
+      "ra_mj_m2_day",
+      0.0
+    ],
+    [
+      "daylength_h",
+      0.0
+    ],
+    [
+      "gdd_cum",
+      0.0
+    ],
+    [
+      "kc_dynamic",
+      0.0
+    ],
+    [
+      "sin_doy",
+      0.0
+    ],
+    [
+      "cos_doy",
+      0.0
+    ],
+    [
+      "vwc_20cm_roll_mean_3h",
+      -0.0017517083535958378
+    ],
+    [
+      "etc_mm_h",
+      -0.006557782353730612
+    ],
+    [
+      "sin_hour",
+      -0.01480969802274501
+    ],
+    [
+      "soil_temp_c",
+      -0.015005709850770543
+    ],
+    [
+      "cos_hour",
+      -0.017012371491888167
+    ],
+    [
+      "vwc_20cm_lag_72s",
+      -0.01877123740584752
+    ],
+    [
+      "vwc_20cm_lag_18s",
+      -0.028985141205289056
+    ],
+    [
+      "vwc_20cm_lag_36s",
+      -0.04373422400463434
+    ],
+    [
+      "vwc_20cm_roll_std_6h",
+      -0.080216705261273
+    ]
+  ],
+  "permutation_base_rmse": 1.8765657470980834
+}
