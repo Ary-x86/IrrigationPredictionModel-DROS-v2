@@ -1,0 +1,76 @@
+{
+  "val": {
+    "fao56": {
+      "days": 4.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 321.67,
+      "policy_mm_per_line_per_day": 64.423,
+      "stuard_mm_per_line": 3308.33,
+      "action_counts": {
+        "OFF": 252,
+        "ON_HIGH": 85,
+        "ON_LOW": 23
+      }
+    },
+    "rule_lstm_3h": {
+      "days": 4.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 466.67,
+      "policy_mm_per_line_per_day": 93.463,
+      "stuard_mm_per_line": 3308.33,
+      "action_counts": {
+        "OFF": 159,
+        "ON_LOW": 122,
+        "ON_HIGH": 79
+      }
+    },
+    "mpc_lstm_6h": {
+      "days": 4.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 93.33,
+      "policy_mm_per_line_per_day": 18.693,
+      "stuard_mm_per_line": 3308.33,
+      "action_counts": {
+        "OFF": 304,
+        "ON_LOW": 56
+      }
+    }
+  },
+  "test": {
+    "fao56": {
+      "days": 5.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 721.67,
+      "policy_mm_per_line_per_day": 120.417,
+      "stuard_mm_per_line": 0.0,
+      "action_counts": {
+        "ON_HIGH": 207,
+        "OFF": 206,
+        "ON_LOW": 19
+      }
+    },
+    "rule_lstm_3h": {
+      "days": 5.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 820.0,
+      "policy_mm_per_line_per_day": 136.825,
+      "stuard_mm_per_line": 0.0,
+      "action_counts": {
+        "ON_HIGH": 244,
+        "OFF": 184,
+        "ON_LOW": 4
+      }
+    },
+    "mpc_lstm_6h": {
+      "days": 5.99,
+      "n_lines": 3,
+      "policy_mm_per_line": 406.67,
+      "policy_mm_per_line_per_day": 67.856,
+      "stuard_mm_per_line": 0.0,
+      "action_counts": {
+        "ON_LOW": 244,
+        "OFF": 188
+      }
+    }
+  }
+}

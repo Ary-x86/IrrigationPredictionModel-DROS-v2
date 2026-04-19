@@ -1,0 +1,278 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title></title></head><body><h1>Non-DROS v2 — Smart Irrigation AI</h1>
+<p>Research-backed rebuild of a smart-irrigation controller for a Stuard research-farm tomato plot (lat 44.1125, lon 10.411). Replaces the original Preite &amp; Vignali (2024) MLP classifier (which had label leakage — target was computed from two of six input features) with a <strong>soil-moisture forecaster + rule policy</strong> pipeline. Built in two parallel tracks so we can compare empirically.</p>
+<ul>
+<li><strong>Track A (done):</strong> XGBoost + LightGBM GBDT forecasters in <code>experiments/gbdt/</code>. Trains on the 37-day Stuard dataset, zero heavy deps, runs in minutes. Already ships a working forecaster and leakage audit.</li>
+<li><strong>Track B (planned):</strong> 2-layer PyTorch LSTM rebuild in <code>src/</code> using ERA5 + Sentinel-2 + ISMN + SMAP transfer learning, MPC policy, SHAP explanations.</li>
+<li><strong>Phase 6:</strong> head-to-head comparison of the two tracks on the held-out test week.</li>
+</ul>
+<p>Full plan lives in <code>PROJECT_NOTES_AND_IMPROVEMENTS.md</code> and the approved plan file <code>.claude/plans/good-notice-that-the-sorted-karp.md</code>.</p>
+<hr />
+<h2>What problem is this solving</h2>
+<p>The original project target <code>Irrigation_Decision</code> was computed <strong>deterministically</strong> from <code>Soil Moisture</code> + <code>Weather Forecast Rainfall</code> (via threshold rules in <code>src/03_soil_capacity_calculator.py</code>), which were then fed in as model inputs. The MLP was re-learning a threshold rule. Reported ~99% accuracy and Monte Carlo “savings up to 57%” were tautological.</p>
+<p>Fix: reframe the task from <strong>“classify irrigation action from current instant”</strong> to <strong>“forecast future soil VWC trajectory, then derive action from the forecast.”</strong> The target (future VWC at horizons {1, 3, 6, 12, 24}h) is no longer a deterministic function of current-instant features, so the leakage route is structurally closed.</p>
+<hr />
+<h2>Current state</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Status</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Track A GBDT features (VPD, Ra, Hargreaves ET0, GDD-Kc, lags, rolls, rain sums)</td>
+<td>done</td>
+<td><code>experiments/gbdt/build_features.py</code></td>
+</tr>
+<tr>
+<td>Track A temporal splits (24h embargo)</td>
+<td>done</td>
+<td><code>experiments/gbdt/temporal_split.py</code></td>
+</tr>
+<tr>
+<td>Track A XGBoost per-horizon trainer</td>
+<td>done</td>
+<td><code>experiments/gbdt/train_xgboost.py</code></td>
+</tr>
+<tr>
+<td>Track A LightGBM per-horizon trainer</td>
+<td>done</td>
+<td><code>experiments/gbdt/train_lightgbm.py</code></td>
+</tr>
+<tr>
+<td>Track A baselines (persistence, climatology, water-balance bucket)</td>
+<td>done</td>
+<td><code>experiments/gbdt/baselines.py</code></td>
+</tr>
+<tr>
+<td>Track A stage-aware MAD rule policy</td>
+<td>done</td>
+<td><code>experiments/gbdt/policy_rule.py</code></td>
+</tr>
+<tr>
+<td>Track A leakage audit (shuffle-label + permutation + ablation)</td>
+<td>done</td>
+<td><code>experiments/gbdt/audit_leakage.py</code></td>
+</tr>
+<tr>
+<td>Track A evaluator + report</td>
+<td>done</td>
+<td><code>experiments/gbdt/evaluate.py</code> → <code>reports/report.md</code></td>
+</tr>
+<tr>
+<td>Track B Phase 0 (legacy audit + main_controller bundle fix)</td>
+<td>pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Track B Phases 1–5 (ERA5/S2/ISMN/SMAP, PyTorch LSTM, MPC, SHAP)</td>
+<td>pending</td>
+<td><code>src/</code></td>
+</tr>
+<tr>
+<td>Phase 6 cross-track comparison</td>
+<td>pending</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Legacy Preite MLP still sits in <code>src/01…05_*.py</code> + <code>main_controller.py</code> as a reference baseline, but its label leakage is documented and it will be renamed to <code>models/legacy_mlp.pkl</code> during Phase 0.</p>
+<hr />
+<h2>Track A results (held-out, honest numbers)</h2>
+<p>Splits: train <code>2023-07-28 → 2023-08-20</code>, val <code>2023-08-21 → 2023-08-27</code>, test <code>2023-08-28 → 2023-09-03</code>, all with 24h embargo on each side of val/test.</p>
+<p>Forecast RMSE (soil VWC %):</p>
+<table>
+<thead>
+<tr>
+<th>split</th>
+<th>h</th>
+<th align="right">persistence</th>
+<th align="right">water_balance</th>
+<th align="right">xgboost</th>
+<th align="right">lightgbm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>val</td>
+<td>1h</td>
+<td align="right">2.00</td>
+<td align="right">1.99</td>
+<td align="right">1.97</td>
+<td align="right"><strong>1.70</strong></td>
+</tr>
+<tr>
+<td>val</td>
+<td>3h</td>
+<td align="right">3.80</td>
+<td align="right">3.75</td>
+<td align="right">3.74</td>
+<td align="right"><strong>3.50</strong></td>
+</tr>
+<tr>
+<td>val</td>
+<td>6h</td>
+<td align="right">4.87</td>
+<td align="right">4.75</td>
+<td align="right"><strong>3.93</strong></td>
+<td align="right">3.88</td>
+</tr>
+<tr>
+<td>val</td>
+<td>12h</td>
+<td align="right">5.06</td>
+<td align="right">5.03</td>
+<td align="right"><strong>3.31</strong></td>
+<td align="right">3.34</td>
+</tr>
+<tr>
+<td>val</td>
+<td>24h</td>
+<td align="right">5.71</td>
+<td align="right">7.31</td>
+<td align="right"><strong>3.70</strong></td>
+<td align="right">3.68</td>
+</tr>
+</tbody>
+</table>
+<p>GBDTs beat persistence on validation at every horizon — plan acceptance criterion met. Full table (incl. MAE/NSE + test split) in <code>experiments/gbdt/reports/report.md</code>.</p>
+<p>Leakage audit (<code>reports/leakage_audit.md</code>):</p>
+<ul>
+<li>Shuffle-label RMSE <strong>4.66</strong> vs persistence <strong>2.00</strong> → model is not memorising labels.</li>
+<li>Dropping <code>vwc_20cm</code> + all VWC lags degrades val RMSE by <strong>+0.93</strong> → model uses non-VWC features meaningfully.</li>
+<li>Permutation importance top-3: <code>vwc_20cm</code> (+3.04), <code>hours_since_last_irrigation</code> (+0.54), <code>vwc_20cm_deriv_1h</code> (+0.06).</li>
+</ul>
+<hr />
+<h2>Install</h2>
+<pre><code class="language-bash">pip install -r requirements.txt
+pip install xgboost lightgbm
+</code></pre>
+<p>Python 3.11+ recommended. Core deps already in <code>requirements.txt</code>: <code>pandas</code>, <code>numpy</code>, <code>scikit-learn</code>, <code>requests</code> (for weather fetch). Track A needs <code>xgboost</code>, <code>lightgbm</code>. Track B will add <code>torch</code>, <code>shap</code>, <code>cdsapi</code>, <code>pystac-client</code>.</p>
+<hr />
+<h2>How to run Track A</h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash"># 1. Build feature table (reads data/merged_sensor_data.csv + data/open_meteo_forecast_data.csv,
+#    writes experiments/gbdt/data/features.csv — 15,981 rows x 39 cols)
+python -m experiments.gbdt.build_features
+
+# 2. Sanity-check the temporal splits
+python -m experiments.gbdt.temporal_split
+
+# 3. Train both GBDT variants (one model per horizon, early-stopped on val RMSE)
+python -m experiments.gbdt.train_xgboost      # ~90s total, saves xgb_h{1,3,6,12,24}h.json
+python -m experiments.gbdt.train_lightgbm     # ~3min total, saves lgb_h{1,3,6,12,24}h.txt
+
+# 4. Run leakage audit on the h=1h model (shuffle-label + permutation + ablation, ~70s)
+python -m experiments.gbdt.audit_leakage
+
+# 5. Evaluate both models + all baselines on val and test, backtest policy
+python -m experiments.gbdt.evaluate
+</code></pre>
+<p>Outputs land in <code>experiments/gbdt/</code>:</p>
+<pre><code>experiments/gbdt/
+├── data/features.csv               # feature table with targets
+├── models/
+│   ├── xgb_h{1h,3h,6h,12h,24h}.json
+│   └── lgb_h{1h,3h,6h,12h,24h}.txt
+└── reports/
+    ├── xgb_training_report.json    # per-horizon train stats
+    ├── lgb_training_report.json
+    ├── leakage_audit.md            # + .json
+    ├── evaluation.json             # full metrics + policy backtest
+    └── report.md                   # human-readable Track A deliverable
+</code></pre>
+<p>Re-run order: steps 1–5 are dependent; re-run 1 if raw CSVs change, 3 if features change, 4–5 after any model change. Steps 4 and 5 are independent of each other.</p>
+<hr />
+<h2>How it works</h2>
+<h3>Feature set (<code>build_features.py</code>)</h3>
+<ul>
+<li><strong>Raw sensor</strong> (per-line, 10-min grid): <code>vwc_20cm</code>, <code>soil_temp_c</code>, <code>air_temp_c</code>, <code>rh_pct</code>.</li>
+<li><strong>Derived physics</strong>: <code>vpd_kpa</code> (Tetens), <code>ra_mj_m2_day</code> (FAO-56 eq. 21), <code>daylength_h</code> (FAO-56 eq. 34), <code>et0_hargreaves_mm_day</code> (Hargreaves-Samani), <code>etc_mm_h = kc_dynamic × et0</code>.</li>
+<li><strong>Phenology</strong>: <code>gdd_cum</code> (base 10 °C from transplant 2023-05-01), <code>growth_stage</code> ∈ {initial, development, mid, late}, <code>kc_dynamic</code> interpolated across stage centers {0.40, 0.75, 1.15, 0.85}.</li>
+<li><strong>Time encoding</strong>: <code>sin/cos_doy</code>, <code>sin/cos_hour</code>.</li>
+<li><strong>Lags + rolls</strong>: VWC lags at {1, 3, 6, 12, 24}h (→ 6, 18, 36, 72, 144 steps), 3h rolling mean, 6h rolling std, 1h finite-difference derivative.</li>
+<li><strong>Weather</strong>: <code>rain_mm_h</code>, rolling rain sums at 1h/6h/24h, <code>et0_open_meteo_mm_h</code>.</li>
+<li><strong>Irrigation state</strong>: <code>volume_diff</code> (mm per 10-min), <code>hours_since_last_irrigation</code>, <code>line_id</code> embedding.</li>
+<li><strong>Targets</strong>: <code>y_vwc_h{1h,3h,6h,12h,24h}</code> via <code>groupby(line).shift(-N)</code> — strictly future, per line.</li>
+</ul>
+<h3>Splits (<code>temporal_split.py</code>)</h3>
+<p>Hard date cutoffs with 24h embargo applied to both sides of the val and test windows so rolling-window features cannot leak across the boundary.</p>
+<h3>Models (<code>train_xgboost.py</code>, <code>train_lightgbm.py</code>)</h3>
+<p>One regressor per horizon, trained independently. XGBoost: <code>max_depth=6</code>, <code>lr=0.05</code>, up to 1000 rounds with early stopping on val RMSE. LightGBM: <code>num_leaves=63</code>, <code>lr=0.05</code>, up to 2000 rounds.</p>
+<h3>Baselines (<code>baselines.py</code>)</h3>
+<ul>
+<li><strong>Persistence</strong>: <code>y_hat(t+h) = vwc(t)</code>. Strong on a stable test week.</li>
+<li><strong>Climatology</strong>: per-line train-set mean.</li>
+<li><strong>Water-balance bucket</strong>: <code>vwc + h × (rain - etc)</code>. Degrades at longer horizons (no irrigation knowledge).</li>
+</ul>
+<h3>Policy (<code>policy_rule.py</code>)</h3>
+<p>Reads the t+3h VWC forecast; derives MAD threshold from stage (MAD fraction × TAW, TAW = FC − WP); emits <code>{OFF, ON_LOW=5mm, ON_HIGH=10mm}</code>. Hourly dedup before volume sum in <code>evaluate.py</code> to avoid counting 6 decisions per hour.</p>
+<h3>Leakage audit (<code>audit_leakage.py</code>)</h3>
+<p>Three hard checks, all on the h=1h target:</p>
+<ol>
+<li><strong>Shuffle-label</strong> — retrain on shuffled y, must be worse than persistence. (4.66 vs 2.00: pass.)</li>
+<li><strong>Permutation importance</strong> — shuffle each feature on val, measure RMSE delta.</li>
+<li><strong>Feature ablation</strong> — drop <code>vwc_20cm</code> + all VWC-derived lags/rolls, retrain. Degradation of +0.93 RMSE shows the model uses other features too.</li>
+</ol>
+<hr />
+<h2>How to test</h2>
+<p>No formal test suite yet for Track A (planned for Track B Phase 1 in <code>tests/</code>). For now:</p>
+<ul>
+<li>Re-run step 5 — <code>report.md</code> regenerates; eyeball the metrics table.</li>
+<li>Acceptance gate from the plan: <strong>GBDT must beat persistence at h=1h on val</strong>. Checked in <code>report.md</code>. Currently: persistence 2.00, xgb 1.97, lgb 1.70 → <strong>pass</strong>.</li>
+<li>Leakage gate: <code>leakage_audit.md</code> shuffle-label row must show <code>pass: True</code>.</li>
+</ul>
+<hr />
+<h2>Configuration</h2>
+<p>All Track A constants live in <code>experiments/gbdt/config.py</code>:</p>
+<ul>
+<li>Geo: <code>LAT=44.1125</code>, <code>LON=10.411</code>.</li>
+<li>Crop: <code>TRANSPLANT_DATE=&quot;2023-05-01&quot;</code>, <code>T_BASE_C=10</code>, <code>GDD_STAGE_EDGES</code>, <code>KC_BY_STAGE</code>.</li>
+<li>Splits: <code>TRAIN_START/END</code>, <code>VAL_*</code>, <code>TEST_*</code>, <code>EMBARGO_HOURS=24</code>.</li>
+<li>Soil: <code>FIELD_CAPACITY_PCT=27.41</code>, <code>WILTING_POINT_PCT=15.0</code>, <code>MAD_FRACTION_BY_STAGE</code>.</li>
+<li>Hardware: <code>LINE_FLOW_LPH=300</code>, <code>PUMP_POWER_KW=4.0</code>, <code>FIELD_AREA_M2=132</code>.</li>
+<li>References: <code>IRRIFRAME_SEASON_MM=324.5</code>.</li>
+</ul>
+<hr />
+<h2>Research backing</h2>
+<p>Tagged per technical choice:</p>
+<ul>
+<li><strong>Task reframe (forecast-then-policy)</strong> — Hamdaoui 2024 (PRISMA review of SM forecasters); Jaiswal 2025 (Smart-Drip IoT review).</li>
+<li><strong>GBDT for data-scarce tabular</strong> — Hamdaoui 2024.</li>
+<li><strong>VPD as top-5 feature / SHAP on XGB</strong> — Wagan 2025.</li>
+<li><strong>FAO-56 ETc, Kc curves</strong> — Allen FAO-56; WIAI 2021 white paper.</li>
+<li><strong>Hargreaves-Samani backup ET</strong> — Sanikhani 2018.</li>
+<li><strong>GDD-driven dynamic Kc</strong> — Sensors 2019 (Remote Control of Greenhouse Vegetable Production).</li>
+<li><strong>Temporal holdout + embargo + leakage audits</strong> — PRISMA Review 2025; Big-Data decision-making review.</li>
+<li><strong>2-layer LSTM (Track B)</strong> — Hamdaoui 2024, Jaiswal 2025, Dhanke 2025 (Climate-Based AI), DLISA.</li>
+<li><strong>Transformer deferred to Phase 6</strong> — Ikegawa 2026 (irrigation-district energy forecasting).</li>
+<li><strong>MPC policy over forecaster</strong> — Ikegawa 2026; Novel autonomous irrigation 6G-IoT.</li>
+<li><strong>Interpretability (SHAP/LIME)</strong> — Wagan 2025; PRISMA 2025.</li>
+<li><strong>ERA5 + transfer learning</strong> — Hamdaoui 2024 (flags single-season generalisation gap).</li>
+<li><strong>Sentinel-2 NDVI/EVI/LAI</strong> — Applications AI in Precision Irrigation.</li>
+<li><strong>Autoencoder anomaly (Phase 6)</strong> — Benameur 2024.</li>
+</ul>
+<hr />
+<h2>Honest limitations</h2>
+<ul>
+<li>Only 37 days of Stuard data (mid-to-late-season). Model is untrustworthy at transplant or harvest phases until Track B adds ERA5 pretraining.</li>
+<li>Single 20 cm probe — cannot disambiguate surface wetting from deep drainage.</li>
+<li>Kc curves are tomato-specific, no cross-crop claim.</li>
+<li>“Water-savings” numbers are simulation, not field-validated.</li>
+<li>Policy backtest’s <code>Stuard mm/line</code> column uses <code>volume_diff</code> sum, which likely reflects cumulative-counter semantics rather than per-step deltas on this feed — treat that column as a placeholder until we validate the water-meter schema in Track B.</li>
+<li>IRRIFRAME comparison fidelity: IRRIFRAME’s internal parameters for this plot aren’t public; our 324.5 mm reference is from the paper, not re-derived.</li>
+</ul>
+<hr />
+<h2>Next steps</h2>
+<ul>
+<li><strong>Track B Phase 0</strong> — honesty check: fix <code>main_controller.py</code> bundle-unbox bug; run permutation audit on the legacy MLP; write <code>reports/leakage_audit_phase0.md</code>.</li>
+<li><strong>Track B Phase 1</strong> — build <code>src/features/*</code>, <code>src/data_io/fetch_{era5,sentinel2,ismn,smap}.py</code>, produce <code>data/processed/modeling_dataset_v2.parquet</code>.</li>
+<li><strong>Track B Phase 2</strong> — PyTorch LSTM forecaster + pretrain-then-finetune.</li>
+<li><strong>Track B Phase 3</strong> — MPC policy layer over the forecast.</li>
+<li><strong>Track B Phase 4</strong> — physics-based Monte Carlo replacing <code>src/05_monte_carlo_simulation.py</code>.</li>
+<li><strong>Track B Phase 5</strong> — SHAP report + fixed deployment controller.</li>
+<li><strong>Phase 6</strong> — run both tracks on the same held-out week, write <code>reports/track_comparison.md</code>, recommend the winner.</li>
+</ul>
+</body></html>

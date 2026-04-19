@@ -1,0 +1,41 @@
+{
+  "resource": {
+    "gbdt_disk_mb": 5.026157379150391,
+    "lstm_disk_mb": 0.23384475708007812,
+    "gbdt_1000pred_ms": 4.236247972585261,
+    "lstm_1000pred_ms": 342.11039199726656
+  },
+  "agreement": {
+    "top_k": 10,
+    "overlap": [
+      "air_temp_c",
+      "hours_since_last_irrigation",
+      "vwc_20cm"
+    ],
+    "jaccard": 0.17647058823529413
+  },
+  "gbdt_top10": {
+    "vwc_20cm": 2148.42138671875,
+    "vwc_20cm_lag_6s": 946.6751708984375,
+    "vwc_20cm_roll_mean_3h": 632.6121826171875,
+    "hours_since_last_irrigation": 357.64996337890625,
+    "line_id": 309.02362060546875,
+    "etc_mm_h": 277.5779113769531,
+    "rain_mm_24h_sum": 164.32615661621094,
+    "vwc_20cm_lag_36s": 148.9210662841797,
+    "et0_hargreaves_mm_day": 142.04000854492188,
+    "air_temp_c": 129.4844970703125
+  },
+  "lstm_top10_perm": {
+    "vwc_20cm": 1.3892364501953125,
+    "vwc_20cm_deriv_1h": 0.45717549324035645,
+    "hours_since_last_irrigation": 0.11095523834228516,
+    "sin_hour": 0.052913665771484375,
+    "cos_hour": 0.03651094436645508,
+    "air_temp_c": 0.03045344352722168,
+    "et0_open_meteo_mm_h": 0.009299516677856445,
+    "kc_dynamic": 0.0021359920501708984,
+    "sin_doy": 0.0011773109436035156,
+    "rain_mm_6h_sum": 0.0
+  }
+}

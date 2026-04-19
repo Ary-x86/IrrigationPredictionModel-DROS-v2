@@ -1,0 +1,442 @@
+[
+  {
+    "datetime": "2023-08-29 07:00:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 29.80562973022461,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 32.869998931884766,
+        "shap": 5.565060615539551
+      },
+      {
+        "feature": "vwc_20cm_lag_6s",
+        "value": 33.02000045776367,
+        "shap": 0.5659846067428589
+      },
+      {
+        "feature": "line_id",
+        "value": 0.0,
+        "shap": 0.3642819821834564
+      }
+    ]
+  },
+  {
+    "datetime": "2023-08-29 17:30:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 28.638273239135742,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 31.06999969482422,
+        "shap": 4.735846519470215
+      },
+      {
+        "feature": "vwc_20cm_lag_6s",
+        "value": 31.350000381469727,
+        "shap": 0.48747768998146057
+      },
+      {
+        "feature": "line_id",
+        "value": 0.0,
+        "shap": 0.3181782364845276
+      }
+    ]
+  },
+  {
+    "datetime": "2023-08-30 08:20:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 28.953794479370117,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 30.530000686645508,
+        "shap": 4.758155822753906
+      },
+      {
+        "feature": "vwc_20cm_lag_6s",
+        "value": 30.65999984741211,
+        "shap": 0.480442613363266
+      },
+      {
+        "feature": "line_id",
+        "value": 0.0,
+        "shap": 0.3148021399974823
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-01 03:20:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 25.473175048828125,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 27.309999465942383,
+        "shap": 2.004204034805298
+      },
+      {
+        "feature": "ra_mj_m2_day",
+        "value": 31.900026321411133,
+        "shap": -0.23863545060157776
+      },
+      {
+        "feature": "vwc_20cm_lag_6s",
+        "value": 27.190000534057617,
+        "shap": 0.21000443398952484
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-02 19:40:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 24.2210750579834,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 25.010000228881836,
+        "shap": 1.0105640888214111
+      },
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 195.3333282470703,
+        "shap": 0.18816369771957397
+      },
+      {
+        "feature": "vwc_20cm_roll_mean_3h",
+        "value": 25.01277732849121,
+        "shap": 0.1460569053888321
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-03 12:10:00",
+    "line_id": 0,
+    "predicted_vwc_3h": 26.017826080322266,
+    "top3_drivers": [
+      {
+        "feature": "etc_mm_h",
+        "value": 0.4956735372543335,
+        "shap": 1.0625535249710083
+      },
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 211.8333282470703,
+        "shap": 0.696017861366272
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 24.6200008392334,
+        "shap": 0.6053299903869629
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-01 00:50:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 23.470510482788086,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 155.1666717529297,
+        "shap": 0.9256114363670349
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 17.299999237060547,
+        "shap": -0.4019835591316223
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.2768056392669678
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-01 03:20:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 23.470510482788086,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 157.6666717529297,
+        "shap": 0.904694139957428
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 14.5,
+        "shap": -0.4085381329059601
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.27649328112602234
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-01 18:30:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 24.540803909301758,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 172.8333282470703,
+        "shap": 1.6750580072402954
+      },
+      {
+        "feature": "vwc_20cm_roll_mean_3h",
+        "value": 20.860000610351562,
+        "shap": 0.3653770089149475
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.2640860974788666
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-02 01:40:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 23.800283432006836,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 180.0,
+        "shap": 1.5082865953445435
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 20.75,
+        "shap": -0.5467004179954529
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.27411821484565735
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-02 21:20:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 23.936063766479492,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 199.6666717529297,
+        "shap": 1.6508328914642334
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 20.149999618530273,
+        "shap": -0.5432760119438171
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.2702315151691437
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-03 08:40:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 22.832590103149414,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 211.0,
+        "shap": 1.3453482389450073
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 20.010000228881836,
+        "shap": -1.2752611637115479
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.2602771818637848
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-03 09:10:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 23.002918243408203,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 211.5,
+        "shap": 1.3801817893981934
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 19.950000762939453,
+        "shap": -1.2179152965545654
+      },
+      {
+        "feature": "line_id",
+        "value": 1.0,
+        "shap": -0.2626223862171173
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-03 15:30:00",
+    "line_id": 1,
+    "predicted_vwc_3h": 28.97970962524414,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 217.8333282470703,
+        "shap": 3.388946771621704
+      },
+      {
+        "feature": "etc_mm_h",
+        "value": 0.4261053204536438,
+        "shap": 2.5272622108459473
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 35.5,
+        "shap": 0.565739095211029
+      }
+    ]
+  },
+  {
+    "datetime": "2023-08-30 02:30:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 24.99085807800293,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 26.899999618530273,
+        "shap": 1.9191904067993164
+      },
+      {
+        "feature": "line_id",
+        "value": 2.0,
+        "shap": -0.28515228629112244
+      },
+      {
+        "feature": "vwc_20cm_roll_std_6h",
+        "value": 0.10761335492134094,
+        "shap": 0.2796747088432312
+      }
+    ]
+  },
+  {
+    "datetime": "2023-08-31 13:50:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 26.590423583984375,
+    "top3_drivers": [
+      {
+        "feature": "etc_mm_h",
+        "value": 0.33626458048820496,
+        "shap": 1.5530712604522705
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 23.6200008392334,
+        "shap": 1.0485236644744873
+      },
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 146.3333282470703,
+        "shap": 0.537932276725769
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-01 04:40:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 24.421607971191406,
+    "top3_drivers": [
+      {
+        "feature": "vwc_20cm",
+        "value": 23.030000686645508,
+        "shap": 0.7041724324226379
+      },
+      {
+        "feature": "soil_temp_c",
+        "value": 21.200000762939453,
+        "shap": 0.5718770027160645
+      },
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 161.1666717529297,
+        "shap": 0.38392457365989685
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-02 09:00:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 24.791461944580078,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 189.5,
+        "shap": 1.3281540870666504
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 32.400001525878906,
+        "shap": 0.4541688561439514
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 22.15999984741211,
+        "shap": 0.2973098158836365
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-02 19:50:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 22.447044372558594,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 200.3333282470703,
+        "shap": 0.6524968147277832
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 20.200000762939453,
+        "shap": -0.3303835690021515
+      },
+      {
+        "feature": "line_id",
+        "value": 2.0,
+        "shap": -0.26630908250808716
+      }
+    ]
+  },
+  {
+    "datetime": "2023-09-03 10:30:00",
+    "line_id": 2,
+    "predicted_vwc_3h": 25.352262496948242,
+    "top3_drivers": [
+      {
+        "feature": "hours_since_last_irrigation",
+        "value": 215.0,
+        "shap": 1.9850436449050903
+      },
+      {
+        "feature": "air_temp_c",
+        "value": 34.5,
+        "shap": 0.8189058899879456
+      },
+      {
+        "feature": "vwc_20cm",
+        "value": 21.75,
+        "shap": -0.7363843321800232
+      }
+    ]
+  }
+]

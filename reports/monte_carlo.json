@@ -1,0 +1,48 @@
+{
+  "fao56": {
+    "seasons": 1000,
+    "total_mm_mean": 303.32,
+    "total_mm_ci95": [
+      258.2388465098773,
+      348.4011534901227
+    ],
+    "stress_hours_mean": 0.0,
+    "stress_hours_ci95": [
+      0.0,
+      0.0
+    ],
+    "deficit_pct_hours_mean": 0.0,
+    "deficit_pct_hours_ci95": [
+      0.0,
+      0.0
+    ],
+    "savings_vs_irriframe_pct_mean": 6.526964560862866,
+    "savings_vs_irriframe_pct_ci95": [
+      -7.365532662595586,
+      20.419461784321317
+    ]
+  },
+  "rule_persistence": {
+    "seasons": 1000,
+    "total_mm_mean": 104.42,
+    "total_mm_ci95": [
+      68.51938162092469,
+      140.3206183790753
+    ],
+    "stress_hours_mean": 0.0,
+    "stress_hours_ci95": [
+      0.0,
+      0.0
+    ],
+    "deficit_pct_hours_mean": 0.0,
+    "deficit_pct_hours_ci95": [
+      0.0,
+      0.0
+    ],
+    "savings_vs_irriframe_pct_mean": 67.82126348228044,
+    "savings_vs_irriframe_pct_ci95": [
+      56.75789880459929,
+      78.8846281599616
+    ]
+  }
+}
