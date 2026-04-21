@@ -1,25 +1,25 @@
-# HydroCast (DROS v2) — Physics + AI Soil-Moisture Forecaster for Smart Irrigation
+# IrrigationPredict AI (DROS v2):  Physics + AI Soil-Moisture Forecaster for Smart Irrigation
 
 A leakage-free rebuild of a tomato-plot irrigation controller for the Stuard research farm (lat 44.1125, lon 10.411). The task was flipped from "classify the irrigation action" to **"forecast future soil VWC, then derive the action,"** killing the structural label-leakage that made the v1 numbers tautological [Wagan 2025; PRISMA 2025].
 
 Two forecasters run in parallel and are compared head-to-head:
 
-- **Track A — Gradient-Boosted Trees** (XGBoost + LightGBM). Production-ready, ~5 MB, ~4 ms per 1000 predictions, native tree-SHAP rationale [Hamdaoui 2024; Wagan 2025].
-- **Track B — 2-layer LSTM with line-id embedding and 5-horizon head** (PyTorch). Research track. Needs ERA5/ISMN/SMAP pretraining to fully close the h=1h gap [Hamdaoui 2024; Jaiswal 2025].
+- **Track A:  Gradient-Boosted Trees** (XGBoost + LightGBM). Production-ready, ~5 MB, ~4 ms per 1000 predictions, native tree-SHAP rationale [Hamdaoui 2024; Wagan 2025].
+- **Track B:  2-layer LSTM with line-id embedding and 5-horizon head** (PyTorch). Research track. Needs ERA5/ISMN/SMAP pretraining to fully close the h=1h gap [Hamdaoui 2024; Jaiswal 2025].
 
 A shared **policy layer** (FAO-56 → rule on forecast → MPC) converts forecasts into actions. A **stateful physics-based Monte Carlo** estimates water-use envelopes across synthetic seasons. A **deployment module** emits farmer-readable JSON `{action, volume_mm, reason_top3_features, confidence}`.
 
 ---
 
-## Why the rebuild — the leakage story
+## Why the rebuild:  the leakage story
 
 The v1 classifier was reported at ~99 % accuracy because its target `Irrigation_Decision` was computed **deterministically** from two of its six input features (`Soil Moisture` and `Weather Forecast Rainfall`) via threshold rules inside `src/03_soil_capacity_calculator.py`. The MLP was re-learning its own label. Monte Carlo "savings up to ~57 %" were artefacts of the sampling distribution, not model intelligence.
 
-**Fix.** Retarget to future soil VWC at `h ∈ {1h, 3h, 6h, 12h, 24h}`. Because the target is the *physically future value*, no current-step feature can be a deterministic function of it — the leakage path is structurally closed, not just audited. See `reports/leakage_audit_phase0.md` for the empirical proof (a depth-4 decision tree on just the two original features fits the v1 target at 1.00 accuracy).
+**Fix.** Retarget to future soil VWC at `h ∈ {1h, 3h, 6h, 12h, 24h}`. Because the target is the *physically future value*, no current-step feature can be a deterministic function of it:  the leakage path is structurally closed, not just audited. See `reports/leakage_audit_phase0.md` for the empirical proof (a depth-4 decision tree on just the two original features fits the v1 target at 1.00 accuracy).
 
 ---
 
-## Status — everything in the plan is done
+## Status:  everything in the plan is done
 
 > All seven phases and both tracks complete. Pretraining on external reanalysis is the only item deferred (blocked on Copernicus CDS / NASA Earthdata credentials).
 
@@ -28,7 +28,7 @@ The v1 classifier was reported at ~99 % accuracy because its target `Irrigation_
 | **Track A** | GBDT forecaster + audit + policy backtest | ✅ | LightGBM val RMSE 1.70 %VWC @ h=1h (persistence 2.00) |
 | **Phase 0** | Legacy MLP leakage proof; `main_controller.py` bundle fix | ✅ | 2-feature tree fits v1 target at 1.00 accuracy [Wagan 2025] |
 | **Phase 1** | `src/features/*` + canonical parquet | ✅ | `data/processed/modeling_dataset_v2.parquet` (15,981 × 39) |
-| **Phase 2** | LSTM forecaster + baselines | ✅ | LSTM val h=6h RMSE **3.48** vs water-balance 4.75 — pass [Hamdaoui 2024] |
+| **Phase 2** | LSTM forecaster + baselines | ✅ | LSTM val h=6h RMSE **3.48** vs water-balance 4.75:  pass [Hamdaoui 2024] |
 | **Phase 3** | FAO-56 + rule + MPC policies | ✅ | MPC val 93.33 mm/line vs FAO-56 321.67 (~3.4× less) [Ikegawa 2026] |
 | **Phase 4** | 1000-season stateful physics MC | ✅ | FAO-56 303.3 mm/season, rule-persistence 104.4 mm, 0 stress h |
 | **Phase 5** | SHAP report + deployment JSON | ✅ | Top drivers: `vwc_20cm`, `hours_since_last_irrigation`, `etc_mm_h` [Wagan 2025] |
@@ -37,9 +37,9 @@ The v1 classifier was reported at ~99 % accuracy because its target `Irrigation_
 
 ---
 
-## Key results (all honest numbers — held-out, no cherry-picking)
+## Key results (all honest numbers:  held-out, no cherry-picking)
 
-### Forecast RMSE per horizon — val split (% VWC)
+### Forecast RMSE per horizon:  val split (% VWC)
 
 | model | 1h | 3h | 6h | 12h | 24h |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -49,7 +49,7 @@ The v1 classifier was reported at ~99 % accuracy because its target `Irrigation_
 | LightGBM (A) | **1.70** | **3.50** | 3.88 | 3.34 | 3.68 |
 | LSTM (B) | 2.54 | 2.99 | **3.48** | **3.95** | **4.35** |
 
-Notes. LightGBM dominates short horizons (h=1h, h=3h). LSTM dominates long horizons on val. The test week 2023-08-28 → 2023-09-03 is unusually stable (persistence NSE 0.94 @ h=1h), so persistence wins that slice — a property of the slice, not a bug.
+Notes. LightGBM dominates short horizons (h=1h, h=3h). LSTM dominates long horizons on val. The test week 2023-08-28 → 2023-09-03 is unusually stable (persistence NSE 0.94 @ h=1h), so persistence wins that slice:  a property of the slice, not a bug.
 
 ### 1000-season Monte Carlo (physics-based, stateful)
 
@@ -58,20 +58,20 @@ Notes. LightGBM dominates short horizons (h=1h, h=3h). LSTM dominates long horiz
 | FAO-56 ETc | 303.3 | [258.2, 348.4] | 0.0 | +6.5 % |
 | rule-persistence | 104.4 | [68.5, 140.3] | 0.0 | +67.8 % |
 
-IRRIFRAME reference: 324.5 mm per plot per season. Savings read alongside stress — high savings with crop stress is not a win.
+IRRIFRAME reference: 324.5 mm per plot per season. Savings read alongside stress:  high savings with crop stress is not a win.
 
 ### Resource profile (Phase 6)
 
 | track | disk (MB) | 1000 predictions (ms) | output |
 | --- | ---: | ---: | --- |
-| A — XGB + LGBM (10 boosters) | 5.03 | 4.2 (one booster) | one scalar per booster |
-| B — LSTM checkpoint | 0.23 | 342.1 | 5-dim vector at once |
+| A:  XGB + LGBM (10 boosters) | 5.03 | 4.2 (one booster) | one scalar per booster |
+| B:  LSTM checkpoint | 0.23 | 342.1 | 5-dim vector at once |
 
 Feature-importance Jaccard between tracks: **0.18** (top-10 GBDT gain vs LSTM permutation Δ-RMSE @ h=3h). Both rank `vwc_20cm` #1; both agree on `hours_since_last_irrigation` and `air_temp_c`. Different views of the same physics.
 
 ---
 
-## Quickstart — how to run
+## Quickstart:  how to run
 
 Python 3.11+.
 
@@ -81,7 +81,7 @@ pip install xgboost lightgbm torch --index-url https://download.pytorch.org/whl/
 pip install shap pytest pyarrow
 ```
 
-### Track A — GBDT pipeline (~2 min total)
+### Track A:  GBDT pipeline (~2 min total)
 
 ```bash
 python -m experiments.gbdt.build_features      # builds features.csv
@@ -92,7 +92,7 @@ python -m experiments.gbdt.audit_leakage       # shuffle + permutation + ablatio
 python -m experiments.gbdt.evaluate            # writes experiments/gbdt/reports/report.md
 ```
 
-### Track B — LSTM pipeline (~5 min CPU)
+### Track B:  LSTM pipeline (~5 min CPU)
 
 ```bash
 python -m src.features.assemble                # writes data/processed/modeling_dataset_v2.parquet
@@ -104,7 +104,7 @@ python -m src.explain.shap_report --sample 20  # writes reports/shap_report.md
 python -m src.deploy.inference                 # farmer JSON for the last test row
 ```
 
-### Phase 6 — cross-track comparison
+### Phase 6:  cross-track comparison
 
 ```bash
 python -m src.eval.compare_tracks              # writes reports/track_comparison.md
@@ -118,23 +118,23 @@ pytest tests/                                  # 15 assertions across physics + 
 
 ---
 
-## Repository layout — what's in each folder
+## Repository layout:  what's in each folder
 
 ```
-HydroCast (DROS v2)/
+Non-DROS V2/
 ├── src/                    Track B Python package (LSTM + policy + MC + deployment)
 │   ├── config.py              Canonical constants (geo, soil, splits, Kc, MAD, actions)
 │   ├── data_io/               Credential-gated fetchers for ERA5, Sentinel-2, ISMN, SMAP
 │   ├── features/              Physics + signal features (FAO-56 Ra, VPD, Hargreaves, GDD-Kc, lags, rolls)
-│   ├── labels/                derive_targets.py — y_vwc_h{N} = shift(-N) per line (strictly future)
-│   ├── splits/                temporal_split.py — train/val/test with 24h embargo
+│   ├── labels/                derive_targets.py:  y_vwc_h{N} = shift(-N) per line (strictly future)
+│   ├── splits/                temporal_split.py:  train/val/test with 24h embargo
 │   ├── models/                lstm_forecaster.py, persistence_baseline.py, water_balance.py
 │   ├── training/              LSTM trainer, sequence dataset, legacy MLP leakage audit
 │   ├── policy/                FAO-56 scheduler, rule on ŷ(t+3h), MPC over ŷ(t+{1,3,6}h), backtest driver
-│   ├── sim/                   water_balance_mc.py — stateful physics MC (Phase 4)
+│   ├── sim/                   water_balance_mc.py:  stateful physics MC (Phase 4)
 │   ├── eval/                  metrics.py, compare_baselines.py, compare_tracks.py (Phase 6)
-│   ├── explain/               shap_report.py — tree-SHAP over XGBoost [Wagan 2025]
-│   └── deploy/                inference.py — farmer-facing JSON emitter
+│   ├── explain/               shap_report.py:  tree-SHAP over XGBoost [Wagan 2025]
+│   └── deploy/                inference.py:  farmer-facing JSON emitter
 │
 ├── experiments/gbdt/       Track A isolated prototype (zero src/ deps; ships first)
 │   ├── config.py              Mirror of src/config.py for the GBDT pipeline
@@ -161,7 +161,7 @@ HydroCast (DROS v2)/
 │   └── mlp_irrigation_model.pkl   Original bundle {model, feature_columns}
 │
 ├── reports/                Generated deliverables
-│   ├── leakage_audit_phase0.md        Why we rebuilt — v1 leakage proof
+│   ├── leakage_audit_phase0.md        Why we rebuilt:  v1 leakage proof
 │   ├── baseline_comparison.md         Track B LSTM vs physics baselines
 │   ├── policy_backtest.md             FAO-56 + rule + MPC backtest on val + test
 │   ├── monte_carlo.md                 1000-season stateful MC
@@ -190,7 +190,7 @@ HydroCast (DROS v2)/
 
 ---
 
-## How it works — end to end
+## How it works:  end to end
 
 ```
 raw feeds (Stuard CSVs + Open-Meteo) ─┐
@@ -225,17 +225,17 @@ raw feeds (Stuard CSVs + Open-Meteo) ─┐
 
 ### Forecasters
 
-**Track A — XGBoost + LightGBM.** One regressor per horizon. XGBoost: `max_depth=6`, `lr=0.05`, up to 1000 rounds with 50-round early stopping. LightGBM: `num_leaves=63`, `lr=0.05`, up to 2000 rounds. `reg:squarederror` (residuals are near-Gaussian on this feed). Full spec: `docs/TRACK_A_GBDT.md`.
+**Track A:  XGBoost + LightGBM.** One regressor per horizon. XGBoost: `max_depth=6`, `lr=0.05`, up to 1000 rounds with 50-round early stopping. LightGBM: `num_leaves=63`, `lr=0.05`, up to 2000 rounds. `reg:squarederror` (residuals are near-Gaussian on this feed). Full spec: `docs/TRACK_A_GBDT.md`.
 
-**Track B — 2-layer LSTM (hidden=64, dropout=0.2, line-id embedding dim=8) + linear head → 5 horizons.** Weighted Huber (δ=1.0, weights `[1.0, 0.8, 0.6, 0.4, 0.3]`). Near-horizon errors weighted higher because the policy reads `ŷ(t+3h)`. Adam `lr=5e-4, wd=1e-4`, patience=12, grad-clip 1.0. Full spec: `docs/TRACK_B_LSTM.md`.
+**Track B:  2-layer LSTM (hidden=64, dropout=0.2, line-id embedding dim=8) + linear head → 5 horizons.** Weighted Huber (δ=1.0, weights `[1.0, 0.8, 0.6, 0.4, 0.3]`). Near-horizon errors weighted higher because the policy reads `ŷ(t+3h)`. Adam `lr=5e-4, wd=1e-4`, patience=12, grad-clip 1.0. Full spec: `docs/TRACK_B_LSTM.md`.
 
 ### Policy layer
 
 `src/policy/`. Action set `{OFF=0 mm, ON_LOW=5 mm, ON_HIGH=10 mm}`. Three policies share the forecaster outputs:
 
-1. **FAO-56 ETc scheduler** — fires when cumulative depletion crosses `MAD_fraction[stage] × TAW`; current-step only. No-forecaster baseline [Allen 1998].
-2. **Rule on ŷ(t+3h)** — MAD threshold with ±2 %VWC hysteresis. Equivalent to Track A's `policy_rule.py`.
-3. **MPC over ŷ(t+{1,3,6}h)** — cost-minimising receding-horizon: `cost = 1·vol + 5·(%-h below MAD_lo) + 50·(%-h below WP)`. Dryout-dominant weighting ensures no knowing under-watering past wilting point [Ikegawa 2026].
+1. **FAO-56 ETc scheduler**:  fires when cumulative depletion crosses `MAD_fraction[stage] × TAW`; current-step only. No-forecaster baseline [Allen 1998].
+2. **Rule on ŷ(t+3h)**:  MAD threshold with ±2 %VWC hysteresis. Equivalent to Track A's `policy_rule.py`.
+3. **MPC over ŷ(t+{1,3,6}h)**:  cost-minimising receding-horizon: `cost = 1·vol + 5·(%-h below MAD_lo) + 50·(%-h below WP)`. Dryout-dominant weighting ensures no knowing under-watering past wilting point [Ikegawa 2026].
 
 ### Monte Carlo (`src/sim/water_balance_mc.py`)
 
@@ -266,17 +266,17 @@ Feature row → Track A XGBoost `ŷ(t+3h)` → MAD rule → tree-SHAP top-3 driv
 }
 ```
 
-`confidence = min(|ŷ − MAD_threshold| / TAW, 1)` — distance from the decision boundary in %VWC normalised by Total Available Water. Track A is chosen here because `shap.TreeExplainer` returns per-row rationale in < 1 ms; DeepExplainer on the LSTM is ~100× slower.
+`confidence = min(|ŷ − MAD_threshold| / TAW, 1)`:  distance from the decision boundary in %VWC normalised by Total Available Water. Track A is chosen here because `shap.TreeExplainer` returns per-row rationale in < 1 ms; DeepExplainer on the LSTM is ~100× slower.
 
 ---
 
 ## Testing
 
-`pytest tests/` — 15 assertions. Breakdown:
+`pytest tests/`:  15 assertions. Breakdown:
 
-- `tests/test_features.py` (12) — physics regressions: VPD(25 °C, 50 %) ≈ 1.584 kPa, Ra(doy=172, lat=44.1125) ≈ 42.3 MJ/m²/day, daylength(doy=80, lat=0) ≈ 12 h, SWDI endpoints, GDD monotonicity.
-- `tests/test_leakage.py` (3) — `y_vwc_h{N}` matches `shift(-N)` exactly; no target columns in feature set; every non-target column timestamp ≤ t.
-- `tests/test_policy.py` — MAD thresholds + action volumes.
+- `tests/test_features.py` (12):  physics regressions: VPD(25 °C, 50 %) ≈ 1.584 kPa, Ra(doy=172, lat=44.1125) ≈ 42.3 MJ/m²/day, daylength(doy=80, lat=0) ≈ 12 h, SWDI endpoints, GDD monotonicity.
+- `tests/test_leakage.py` (3):  `y_vwc_h{N}` matches `shift(-N)` exactly; no target columns in feature set; every non-target column timestamp ≤ t.
+- `tests/test_policy.py`:  MAD thresholds + action volumes.
 
 Audits (not pytest, but run as part of the pipelines):
 
@@ -359,7 +359,7 @@ Every technical choice is tagged with the paper that motivates it. Full list in 
 
 Cited in Chicago author-date style. Full PDFs in `papers/`.
 
-- **Allen, R. G., Pereira, L. S., Raes, D., & Smith, M.** 1998. *Crop Evapotranspiration — Guidelines for Computing Crop Water Requirements.* FAO Irrigation and Drainage Paper 56. Food and Agriculture Organization of the United Nations.
+- **Allen, R. G., Pereira, L. S., Raes, D., & Smith, M.** 1998. *Crop Evapotranspiration:  Guidelines for Computing Crop Water Requirements.* FAO Irrigation and Drainage Paper 56. Food and Agriculture Organization of the United Nations.
 - **Benameur, N., et al.** 2024. "An Innovative Smart and Sustainable Low-Cost Irrigation System for Anomaly Detection Using Deep Learning." *Sensors* 24(1): 1162.
 - **Debangshi, U.** 2025. "Precision Irrigation with Artificial Intelligence–Integrated Ground-Penetrating Radar Reduces Water Stress in Corn." *Agricultural & Environment Letters*.
 - **Dhanke, J., et al.** 2025. "Climate-Based AI-Powered Precision Irrigation: Sustainably Smart Agriculture Frameworks for Maximum Crop Yields." *Discover Sustainability*, article s41976-024-00174-4.
@@ -393,7 +393,7 @@ Cited in Chicago author-date style. Full PDFs in `papers/`.
 
 ---
 
-## Deferred (Phase 7+ — credential-gated or explicitly out of scope)
+## Deferred (Phase 7+:  credential-gated or explicitly out of scope)
 
 - ERA5 (Copernicus CDS) + ISMN + SMAP multi-year pretraining of the LSTM [Hamdaoui 2024].
 - Transformer forecaster [Ikegawa 2026].
